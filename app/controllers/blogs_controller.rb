@@ -9,13 +9,21 @@ class BlogsController < ApplicationController
     @blogs = Blog.search(params[:term]).published.default_order
   end
 
-  def show; end
+  def show
+    return unless @blog.secret?
+    return if user_signed_in? && @blog.owned_by?(current_user)
+
+    head :not_found
+  end
 
   def new
     @blog = Blog.new
   end
 
-  def edit; end
+  def edit
+    @blog = Blog.find(params[:id])
+    head :not_found unless @blog.owned_by?(current_user)
+  end
 
   def create
     @blog = current_user.blogs.new(blog_params)
@@ -28,6 +36,9 @@ class BlogsController < ApplicationController
   end
 
   def update
+    @blog = Blog.find(params[:id])
+    return head :not_found unless @blog.owned_by?(current_user)
+
     if @blog.update(blog_params)
       redirect_to blog_url(@blog), notice: 'Blog was successfully updated.'
     else
@@ -36,6 +47,9 @@ class BlogsController < ApplicationController
   end
 
   def destroy
+    @blog = Blog.find(params[:id])
+    return head :not_found unless @blog.owned_by?(current_user)
+
     @blog.destroy!
 
     redirect_to blogs_url, notice: 'Blog was successfully destroyed.', status: :see_other
@@ -48,6 +62,8 @@ class BlogsController < ApplicationController
   end
 
   def blog_params
-    params.expect(blog: %i[title content secret random_eyecatch])
+    permitted_params = %i[title content secret]
+    permitted_params << :random_eyecatch if current_user.premium?
+    params.expect(blog: permitted_params)
   end
 end
